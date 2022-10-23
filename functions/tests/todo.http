@@ -1,0 +1,20 @@
+@endpont = http://127.0.0.1:5001/fastify-todo-list-1707f/us-central1/todoList
+
+
+##
+GET  {{endpont}}/todo
+Content-Type: application/json
+
+###
+
+##
+POST {{endpont}}/todo
+Content-Type: application/json
+
+{
+  "title": "test-todo",
+  "description": "test-description",
+  "by": "Richie"
+}
+
+###

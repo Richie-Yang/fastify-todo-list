@@ -1,13 +1,13 @@
 import * as functions from 'firebase-functions';
 import { fastify, requestHandle } from './fastify';
+import { todoController } from './controllers';
 
-fastify.addContentTypeParser('application/json', {}, (req, body, done) => {
-  done(null, body);
+fastify.addContentTypeParser('application/json', {}, (req, body: any, done) => {
+  done(null, body.body);
 });
 
-fastify.get('/', (req, reply) => {
-  reply.send({ hello: 'world' });
-});
+fastify.register(todoController, { prefix: '/todo' });
+// fastify.register(todoController, {  })
 
 export const todoList = functions.https.onRequest((req, res) => {
   fastify.ready((err) => {

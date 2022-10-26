@@ -2,7 +2,7 @@ import * as _ from 'lodash';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { firestore } from 'firebase-admin';
-import { printLog, getLogOptions } from '.';
+import { printLog, getLogOptions } from '../utils';
 import {
   WhereQuery,
   CollectionRef,
@@ -20,41 +20,57 @@ db.settings({ ignoreUndefinedProperties: true });
 export function getCollection(collectionName: string) {
   return {
     findWhole: findWhole(collectionName),
+    findOne: findOne(collectionName),
     findAll: findAll(collectionName),
     findById: findById(collectionName),
     countAll: countAll(collectionName),
     create: create(collectionName),
     update: update(collectionName),
-    // softDelete: softDelete(collectionName),
-    // hardDelete: hardDelete(collectionName),
+    hardDelete: hardDelete(collectionName),
   };
 }
 
 function findWhole(collectionName: string) {
+  return async (where: WhereQuery | null = null) =>
+    await _fetchWhole(collectionName, where);
+}
+
+function findOne(collectionName: string) {
   return async (where: WhereQuery | null = null) => {
-    const result: { rows: firestore.DocumentData[] } = { rows: [] };
-    const { srvProvider, collection } = _getSettings(collectionName);
-    const logOptions = getLogOptions({
-      srvProvider,
-      service: `findWhole-${collectionName}`,
-    });
-
-    let docRef: QueryRef | CollectionRef = collection;
-    if (where) {
-      const searchEntries = Array.isArray(where[0]) ? where : [where];
-      for (const entry of searchEntries) {
-        const [searchKey, op, searchValue] = entry;
-        docRef = await (docRef || collection).where(searchKey, op, searchValue);
-      }
-    } else docRef = collection;
-
-    let allDocs = await docRef.get();
-    if (allDocs.empty) return result;
-    allDocs.forEach((doc) => result.rows.push(doc.data()));
-
-    printLog(logOptions);
-    return result;
+    const whole = await _fetchWhole(collectionName, where);
+    const sortedWhole = whole.sort(
+      (prev, next) => next.createdAt - prev.createdAt
+    );
+    return _.get(sortedWhole, '[0]', null) as firestore.DocumentData | null;
   };
+}
+
+async function _fetchWhole(
+  collectionName: string,
+  where: WhereQuery | null = null
+) {
+  const result: firestore.DocumentData[] = [];
+  const { srvProvider, collection } = _getSettings(collectionName);
+  const logOptions = getLogOptions({
+    srvProvider,
+    service: `${_fetchWhole.name}-${collectionName}`,
+  });
+
+  let docRef: QueryRef | CollectionRef = collection;
+  if (where) {
+    const searchEntries = Array.isArray(where[0]) ? where : [where];
+    for (const entry of searchEntries) {
+      const [searchKey, op, searchValue] = entry;
+      docRef = await (docRef || collection).where(searchKey, op, searchValue);
+    }
+  } else docRef = collection;
+
+  let allDocs = await docRef.get();
+  if (allDocs.empty) return result;
+  allDocs.forEach((doc) => result.push(doc.data()));
+
+  printLog(logOptions);
+  return result;
 }
 
 function findAll(collectionName: string) {
@@ -70,7 +86,7 @@ function findAll(collectionName: string) {
     const { srvProvider, collection } = _getSettings(collectionName);
     const logOptions = getLogOptions({
       srvProvider,
-      service: `findAll-${collectionName}`,
+      service: `${findAll.name}-${collectionName}`,
     });
 
     let allDocs: firestore.QuerySnapshot<firestore.DocumentData> | null = null,
@@ -143,11 +159,11 @@ function findById(collectionName: string) {
     const { srvProvider, collection } = _getSettings(collectionName);
     const logOptions = getLogOptions({
       srvProvider,
-      service: `findById-${collectionName}`,
+      service: `${findById.name}-${collectionName}`,
     });
     const docSnap = await collection.doc(documentId).get();
     printLog(logOptions);
-    return docSnap.data() || {};
+    return docSnap.data() || null;
   };
 }
 
@@ -156,7 +172,7 @@ function countAll(collectionName: string) {
     const { srvProvider, collection } = _getSettings(collectionName);
     const logOptions = getLogOptions({
       srvProvider,
-      service: `countAll-${collectionName}`,
+      service: `${countAll.name}-${collectionName}`,
     });
     const docRefs = await collection.get();
     printLog(logOptions);
@@ -165,19 +181,21 @@ function countAll(collectionName: string) {
 }
 
 function create(collectionName: string) {
-  return async (createData: any = {}) => {
+  return async (
+    createData: { [key: string]: any } = {},
+    documentId?: string
+  ) => {
     const { srvProvider, collection } = _getSettings(collectionName);
     const logOptions = getLogOptions({
       srvProvider,
-      service: `create-${collectionName}`,
+      service: `${create.name}-${collectionName}`,
     });
     const data = Object.assign(createData, {
-      id: _genRandomCode(12),
+      id: documentId || _genRandomCode(12),
       createdAt: Math.round(Date.now() / 1000),
       updatedAt: Math.round(Date.now() / 1000),
     });
     await collection.doc(data.id).set(data);
-    // _updateDocSize({ numberOfDocs: 1 });
     printLog(logOptions);
     return true;
   };
@@ -200,37 +218,18 @@ function update(collectionName: string) {
   };
 }
 
-// function softDelete(collectionName: string) {
-//   return async (documentId: string) => {
-//     const { srvProvider, collection } = _getSettings(collectionName);
-//     const logOptions = getLogOptions({
-//       srvProvider,
-//       service: `softDelete-${collectionName}`,
-//     });
-//     const updateData = {
-//       updatedAt: Math.round(Date.now() / 1000),
-//       status: DB_DATA_STATUS.DELETE,
-//     };
-//     await collection.doc(documentId).update(updateData);
-//     printLog(logOptions);
-//     // _updateDocSize({ numberOfDeletes: 1 });
-//     return true;
-//   };
-// }
-
-// function hardDelete(collectionName: string) {
-//   return async (documentId: string) => {
-//     const { srvProvider, collection } = _getSettings(collectionName);
-//     const logOptions = getLogOptions({
-//       srvProvider,
-//       service: `hardDelete-${collectionName}`,
-//     });
-//     await collection.doc(documentId).delete();
-//     printLog(logOptions);
-//     // _updateDocSize({ numberOfDocs: -1 });
-//     return true;
-//   };
-// }
+function hardDelete(collectionName: string) {
+  return async (documentId: string) => {
+    const { srvProvider, collection } = _getSettings(collectionName);
+    const logOptions = getLogOptions({
+      srvProvider,
+      service: `${hardDelete.name}-${collectionName}`,
+    });
+    await collection.doc(documentId).delete();
+    printLog(logOptions);
+    return true;
+  };
+}
 
 function _getSettings(collectionName: string) {
   return {
@@ -238,27 +237,6 @@ function _getSettings(collectionName: string) {
     collection: db.collection(collectionName),
   };
 }
-
-// function _updateDocSize(options = { numberOfDocs: 0 }) {
-//   const overrideOptions = Object.assign({ numberOfDocs: 0 }, options);
-//   for (const field in overrideOptions) {
-//     db.doc(`${DATA_MODEL.SIZE}/${this.collectionName}`).update(
-//       field,
-//       firestore.FieldValue.increment(overrideOptions[field])
-//     );
-//   }
-// }
-
-// async function _getDocSize() {
-//   const docSnap = await db
-//     .doc(`${DATA_MODEL.SIZE}/${this.collectionName}`)
-//     .get();
-
-//   const floorNumber = 0;
-//   const { numberOfDocs, numberOfDeletes } = docSnap.data();
-//   const diffNumber = numberOfDocs - (numberOfDeletes || floorNumber);
-//   return diffNumber > floorNumber ? diffNumber : floorNumber;
-// }
 
 function _genRandomCode(length: number) {
   const char = '1234567890abcdefghijklmnopqrstuvwxyz';

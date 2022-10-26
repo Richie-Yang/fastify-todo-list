@@ -1,4 +1,4 @@
-import { getCollection } from '../utilities/firestore.utility';
+import { getCollection } from './firestore';
 import { DATA_MODEL } from '../variables';
 
 export function todoListRepository() {

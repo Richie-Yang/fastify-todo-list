@@ -1,10 +1,22 @@
 import S from 'fluent-json-schema';
+import { TODO_STATUS } from '../variables';
 
-export const todoBodySchema = S.object()
-  .prop('title', S.string().required())
-  .prop('description', S.string())
-  .prop('by', S.string().required());
+export { todoBodySchema, postTodoSchema, patchTodoSchema };
 
-export const getTodoSchema = {
+const todoBodySchema = S.object()
+  .prop('todoListId', S.string())
+  .prop('title', S.string())
+  .prop('detail', S.string())
+  .prop('status', S.enum(Object.values(TODO_STATUS)))
+  .prop('createdBy', S.string())
+  .additionalProperties(false);
+
+const postTodoSchema = {
+  body: {
+    ...todoBodySchema.required(['todoListId', 'title', 'status', 'createdBy']),
+  },
+};
+
+const patchTodoSchema = {
   body: todoBodySchema,
 };

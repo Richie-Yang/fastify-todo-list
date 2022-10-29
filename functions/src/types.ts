@@ -1,6 +1,7 @@
 import * as http from 'http';
 import { FastifyServerFactory } from 'fastify';
 import { firestore } from 'firebase-admin';
+import { TODO_STATUS } from './variables';
 
 export type Handler = (
   request: http.IncomingMessage,
@@ -34,10 +35,16 @@ export type CollectionRef =
   firestore.CollectionReference<firestore.DocumentData>;
 export type QueryRef = firestore.Query<firestore.DocumentData>;
 
-export type Todo = {
+export type TodoList = {
   title: string;
   description?: string;
-  by: string;
-  updatedAt: number;
-  createdAt: number;
+  status: TODO_STATUS;
+  createdBy: string;
+};
+
+export type Todo = {
+  todoListId: string;
+  title: string;
+  detail?: string;
+  createdBy: string;
 };

@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
-import { todoRepository } from '../repositories';
-import { getTodoSchema } from '../schemas';
+import { todoListRepository, todoRepository } from '../repositories';
+import { postTodoSchema, patchTodoSchema } from '../schemas';
+import { Todo } from '../types';
+import { ERROR } from '../messages';
 
 export async function todoController(
   fastify: FastifyInstance,
@@ -17,12 +19,15 @@ export async function todoController(
     return reply.send(allTodo);
   });
 
-  fastify.post('/', { schema: getTodoSchema }, async (req, reply) => {
+  fastify.post('/', { schema: postTodoSchema }, async (req, reply) => {
+    const { todoListId } = req.body as Todo;
+    const todoList = await todoListRepository().findById(todoListId);
+    if (!todoList) throw new Error(ERROR.TODO_LIST.NOT_FOUND);
     const createdTodo = await todoRepository().create(req.body as any);
     return reply.send(createdTodo);
   });
 
-  fastify.patch('/:id', async (req, reply) => {
+  fastify.patch('/:id', { schema: patchTodoSchema }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const updatedTodo = await todoRepository().update(id, req.body as any);
     return reply.send(updatedTodo);
